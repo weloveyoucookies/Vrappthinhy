@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Tablet Cardboard VR with Hand Tracking</title>
+    <!-- A-Frame Library -->
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <!-- MediaPipe Hands & Camera Utils -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    
+    <style>
+      /* Keep hidden video element for MediaPipe feed */
+      #input_video {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Hidden video element that feeds the front camera to MediaPipe -->
+    <video id="input_video" playsinline></video>
+
+    <!-- VR Scene -->
+    <a-scene vr-mode-ui="enabled: true">
+      <!-- Sky Background -->
+      <a-sky color="#1A1A2E"></a-sky>
+
+      <!-- Ambient and directional light -->
+      <a-light type="ambient" color="#BBB"></a-light>
+      <a-light type="directional" color="#FFF" intensity="0.6" position="-0.5 1 1"></a-light>
+
+      <!-- Target box sitting in 3D space -->
+      <a-box position="0 1.5 -3" rotation="0 45 0" color="#4CC3D9" id="target-box"></a-box>
+
+      <!-- Hand-controlled Sphere cursor -->
+      <a-sphere id="hand-cursor" position="0 1.5 -2" radius="0.1" color="#FF4081"></a-sphere>
+
+      <!-- VR Camera Rig -->
+      <a-entity id="rig" position="0 0 0">
+        <a-camera position="0 1.6 0"></a-camera>
+      </a-entity>
+    </a-scene>
+
+    <script>
+      const videoElement = document.getElementById('input_video');
+      const handCursor = document.getElementById('hand-cursor');
+
+      // Initialize MediaPipe Hands
+      const hands = new Hands({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+      });
+
+      hands.setOptions({
+        maxNumHands: 1,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+
+      // Handle hand detection results
+      hands.onResults((results) => {
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+          const landmarks = results.multiHandLandmarks[0];
+          
+          // Use Index Finger Tip (Landmark 8)
+          const indexFinger = landmarks[8];
+
+          // Map 2D camera coordinates (0 to 1) to 3D VR positions
+          // Invert X because selfie cameras are mirrored
+          const x = (0.5 - indexFinger.x) * 3; 
+          const y = (0.5 - indexFinger.y) * 3 + 1.5; 
+          const z = -2; // Fixed depth in front of player
+
+          // Update hand cursor position in VR
+          handCursor.setAttribute('position', `${x} ${y} ${z}`);
+        }
+      });
+
+      // Start the front-facing camera stream
+      const camera = new Camera(videoElement, {
+        onFrame: async () => {
+          await hands.send({ image: videoElement });
+        },
+        facingMode: 'user', // Front camera so it sees your hands while in Cardboard
+        width: 640,
+        height: 480
+      });
+
+      camera.start().catch((err) => {
+        console.error("Camera access error:", err);
+      });
+    </script>
+  </body>
+        </html>
+        
